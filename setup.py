@@ -2,12 +2,12 @@ from setuptools import setup, find_packages
 
 setup(
     name="pybabel-angularjs",
-    version="0.1.0",
+    version="0.2.0",
     author="Sebastien Fievet",
     author_email="sebastien@shore.li",
     url="https://bitbucket.org/shoreware/pybabel-angularjs",
     description="An AngularJS extractor for Babel",
-    #long_description=open('README.rst').read(),
+    long_description=open('README.rst').read(),
     package_dir={'': 'src'},
     packages=find_packages('src'),
     install_requires=['babel'],
@@ -37,4 +37,3 @@ setup(
         "Programming Language :: Python :: 3.5",
     ],
 )
-

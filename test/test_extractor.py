@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from babel._compat import StringIO
 
 from pybabel_angularjs.extractor import extract_angularjs
@@ -77,4 +78,12 @@ def test_nested_tags():
     messages = list(extract_angularjs(buf, [], [], {}))
     assert messages == [
         (1, 'gettext', 'hello <b>Beautiful</b> world!', [])
+    ]
+
+
+def test_utf8_encoding():
+    buf = StringIO('<html><div data-translate>What’s up!</p></html>')
+    messages = list(extract_angularjs(buf, [], [], {}))
+    assert messages == [
+        (1, 'gettext', u'What’s up!', [])
     ]

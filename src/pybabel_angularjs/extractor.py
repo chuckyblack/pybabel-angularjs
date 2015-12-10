@@ -3,6 +3,8 @@ try:
 except ImportError:
     from HTMLParser import HTMLParser
 
+from babel._compat import PY2
+
 
 class AngularJSGettextHTMLParser(HTMLParser):
     """Parse HTML to find translate directives.
@@ -15,12 +17,13 @@ class AngularJSGettextHTMLParser(HTMLParser):
         entries (i.e. "{$ expression $}" becomes "%(expression)")
     """
 
-    def __init__(self):
+    def __init__(self, encoding):
         try:
             super(AngularJSGettextHTMLParser, self).__init__()
         except TypeError:
             HTMLParser.__init__(self)
 
+        self.encoding = encoding
         self.in_translate = False
         self.inner_tags = []
         self.data = ''
@@ -40,9 +43,15 @@ class AngularJSGettextHTMLParser(HTMLParser):
                 self.plural_form = ''
                 if 'data-translate-plural' in attrdict:
                     self.plural = True
-                    self.plural_form = attrdict['data-translate-plural']
+                    value = attrdict['data-translate-plural']
+                    if PY2:
+                        value = value.decode(self.encoding)
+                    self.plural_form = value
                 if 'data-translate-comment' in attrdict:
-                    self.comments.append(attrdict['data-translate-comment'])
+                    value = attrdict['data-translate-comment']
+                    if PY2:
+                        value = value.decode(self.encoding)
+                    self.comments.append(value)
         elif self.in_translate:
             self.data += '<%s>' % tag
             self.inner_tags.append(tag)
@@ -55,8 +64,11 @@ class AngularJSGettextHTMLParser(HTMLParser):
                     raise RuntimeError(
                         "Cannot find attribute %r on <%s> at line %s" %
                         (attr, tag, self.lineno))
+                value = attrdict[attr]
+                if PY2:
+                    value = value.decode(self.encoding)
                 self.entries.append(
-                    (self.lineno, u'gettext', attrdict[attr], [])
+                    (self.lineno, u'gettext', value, [])
                 )
 
     def handle_data(self, data):
@@ -69,14 +81,17 @@ class AngularJSGettextHTMLParser(HTMLParser):
                 tag = self.inner_tags.pop()
                 self.data += "</%s>" % tag
                 return
+            value = self.data.strip()
+            if PY2:
+                value = value.decode(self.encoding)
             if self.plural_form:
                 messages = (
-                    self.data.strip(),
+                    value,
                     self.plural_form
                 )
                 func_name = u'ngettext'
             else:
-                messages = self.data.strip()
+                messages = value
                 func_name = u'gettext'
             self.entries.append(
                 (self.lineno, func_name, messages, self.comments)
@@ -102,7 +117,8 @@ def extract_angularjs(fileobj, keywords, comment_tags, options):
     :rtype: ``iterator``
     """
 
-    parser = AngularJSGettextHTMLParser()
+    encoding = options.get('encoding', 'utf-8')
+    parser = AngularJSGettextHTMLParser(encoding)
 
     for line in fileobj:
         parser.feed(line)
