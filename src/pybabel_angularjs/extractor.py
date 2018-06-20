@@ -5,6 +5,8 @@ except ImportError:
 
 from babel._compat import PY2
 
+import bs4
+
 
 class AngularJSGettextHTMLParser(HTMLParser):
     """Parse HTML to find translate directives.
@@ -38,7 +40,7 @@ class AngularJSGettextHTMLParser(HTMLParser):
         attrdict = dict(attrs)
 
         # handle data-translate attribute for translating content
-        if 'data-translate' in attrdict:
+        if 'translate' in attrdict:
                 self.in_translate = True
                 self.plural_form = ''
                 if 'data-translate-plural' in attrdict:
@@ -118,10 +120,8 @@ def extract_angularjs(fileobj, keywords, comment_tags, options):
     """
 
     encoding = options.get('encoding', 'utf-8')
-    parser = AngularJSGettextHTMLParser(encoding)
+    html = bs4.BeautifulSoup(fileobj, "html.parser")
+    tags = html.find_all(lambda tag: tag.has_attr("translate"))  # type: list[bs4.Tag]
 
-    for line in fileobj:
-        parser.feed(line)
-
-    for entry in parser.entries:
-        yield entry
+    for tag in tags:
+        yield (1, u"gettext", tag.encode_contents(0).replace("\n", "").replace("\t", "").decode("utf-8"), [tag.attrs["translate"]])
