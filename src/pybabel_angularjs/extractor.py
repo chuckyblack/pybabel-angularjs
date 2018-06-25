@@ -119,6 +119,8 @@ def extract_angularjs(fileobj, keywords, comment_tags, options):
              tuples
     :rtype: ``iterator``
     """
+    # atributy, ktere chceme prekladat, tzn extrahovat do .po
+    ATTRIBUTES = ["placeholder", "data-title", "alt", "data-tooltip", "href", "title"]
 
     encoding = options.get('encoding', 'utf-8')
     html = bs4.BeautifulSoup(fileobj, "html.parser")
@@ -130,6 +132,13 @@ def extract_angularjs(fileobj, keywords, comment_tags, options):
         content = re.sub("\s+", " ", content).strip()
         content = content.replace("/>", ">")
 
-        # TODO: extrakt hodnot z atributu
+        if content:
+            # jinak to vraci warning pri prazdnem stringu
+            yield (1, u"gettext", content.decode("utf-8"), [tag.attrs["translate"]])
 
-        yield (1, u"gettext", content.decode("utf-8"), [tag.attrs["translate"]])
+        for attr in tag.attrs:
+            if attr not in ATTRIBUTES:
+                continue
+            attrContent = tag.attrs[attr]
+            print attr, attrContent
+            yield (1, u"gettext", attrContent, [tag.attrs["translate"]])
