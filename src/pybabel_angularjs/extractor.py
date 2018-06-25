@@ -124,7 +124,7 @@ def extract_angularjs(fileobj, keywords, comment_tags, options):
 
     encoding = options.get('encoding', 'utf-8')
     html = bs4.BeautifulSoup(fileobj, "html.parser")
-    tags = html.find_all(lambda tag: tag.has_attr("translate"))  # type: list[bs4.Tag]
+    tags = html.find_all(lambda tag: tag.has_attr("i18n"))  # type: list[bs4.Tag]
 
     for tag in tags:
         content = tag.encode_contents()
@@ -134,11 +134,11 @@ def extract_angularjs(fileobj, keywords, comment_tags, options):
 
         if content:
             # jinak to vraci warning pri prazdnem stringu
-            yield (1, u"gettext", content.decode("utf-8"), [tag.attrs["translate"]])
+            yield (1, u"gettext", content.decode("utf-8"), [tag.attrs["i18n"]])
 
         for attr in tag.attrs:
             if attr not in ATTRIBUTES:
                 continue
             attrContent = tag.attrs[attr]
             print attr, attrContent
-            yield (1, u"gettext", attrContent, [tag.attrs["translate"]])
+            yield (1, u"gettext", attrContent, [tag.attrs["i18n"]])
