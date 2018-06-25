@@ -6,6 +6,7 @@ except ImportError:
 from babel._compat import PY2
 
 import bs4
+import re
 
 
 class AngularJSGettextHTMLParser(HTMLParser):
@@ -124,4 +125,11 @@ def extract_angularjs(fileobj, keywords, comment_tags, options):
     tags = html.find_all(lambda tag: tag.has_attr("translate"))  # type: list[bs4.Tag]
 
     for tag in tags:
-        yield (1, u"gettext", tag.encode_contents(0).replace("\n", "").replace("\t", "").decode("utf-8"), [tag.attrs["translate"]])
+        content = tag.encode_contents()
+        content = content.replace("\n", " ").replace("\t", " ")
+        content = re.sub("\s+", " ", content).strip()
+        content = content.replace("/>", ">")
+
+        # TODO: extrakt hodnot z atributu
+
+        yield (1, u"gettext", content.decode("utf-8"), [tag.attrs["translate"]])
