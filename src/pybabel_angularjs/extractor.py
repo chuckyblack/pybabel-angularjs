@@ -119,26 +119,35 @@ def extract_angularjs(fileobj, keywords, comment_tags, options):
              tuples
     :rtype: ``iterator``
     """
-    # atributy, ktere chceme prekladat, tzn extrahovat do .po
-    ATTRIBUTES = ["placeholder", "data-title", "alt", "data-tooltip", "href", "title"]
+    # # atributy, ktere chceme prekladat, tzn extrahovat do .po
+    # ATTRIBUTES = ["placeholder", "data-title", "alt", "data-tooltip", "href", "title"]
 
     encoding = options.get('encoding', 'utf-8')
     html = bs4.BeautifulSoup(fileobj, "html.parser")
-    tags = html.find_all(lambda tag: tag.has_attr("i18n"))  # type: list[bs4.Tag]
+    # tags = html.find_all(lambda tag: tag.has_attr("i18n"))  # type: list[bs4.Tag]
+    tags = html.find_all(lambda tag: any("i18n" in attr for attr in tag.attrs))  # type: list[bs4.Tag]
+    print tags
 
     for tag in tags:
-        content = tag.encode_contents()
-        content = content.replace("\n", " ").replace("\t", " ")
-        content = re.sub("\s+", " ", content).strip()
-        content = content.replace("/>", ">")
-
-        if content:
-            # jinak to vraci warning pri prazdnem stringu
-            yield (1, u"gettext", content.decode("utf-8"), [tag.attrs["i18n"]])
-
         for attr in tag.attrs:
-            if attr not in ATTRIBUTES:
+            if attr == "i18n":
+                content = tag.encode_contents()
+                content = content.replace("\n", " ").replace("\t", " ")
+                content = re.sub("\s+", " ", content).strip()
+                content = content.replace("/>", ">")
+                if content:
+                    # jinak to vraci warning pri prazdnem stringu
+                    yield (1, u"gettext", content.decode("utf-8"), [tag.attrs["i18n"]])
                 continue
-            attrContent = tag.attrs[attr]
-            print attr, attrContent
-            yield (1, u"gettext", attrContent, [tag.attrs["i18n"]])
+
+            if attr.startswith("i18n-"):
+                translateAttr = attr.split("i18n-")[1]
+                try:
+                    translateAttrContent = tag.attrs[translateAttr]
+                except:
+                    raise AttributeNotFoundExeption()
+                yield (1, u"gettext", translateAttrContent, [translateAttr])
+
+
+class AttributeNotFoundExeption(Exception):
+    pass
