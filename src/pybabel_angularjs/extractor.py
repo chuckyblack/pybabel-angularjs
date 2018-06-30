@@ -1,107 +1,41 @@
-try:
-    from html.parser import HTMLParser
-except ImportError:
-    from HTMLParser import HTMLParser
-
-from babel._compat import PY2
+# coding=utf-8
 
 import bs4
 import re
 
+re_collapse_whitespaces = re.compile("\s+")
 
-class AngularJSGettextHTMLParser(HTMLParser):
-    """Parse HTML to find translate directives.
 
-    Currently this parses for these forms of translation:
-
-    <p data-translate>content</p>
-        The content will be translated. Angular value templating will be
-        recognised and transformed into gettext-familiar translation
-        entries (i.e. "{$ expression $}" becomes "%(expression)")
+def normalize_content(tag):
     """
+    :type tag: bs4.Tag
+    """
+    content = (
+        tag
+        .encode_contents()
+        .replace("\n", " ")
+        .replace("\t", " ")
+        .replace("/>", ">")
+        .replace("</br>", "")
+    )
+    return re_collapse_whitespaces.sub(" ", content).strip()
 
-    def __init__(self, encoding):
-        try:
-            super(AngularJSGettextHTMLParser, self).__init__()
-        except TypeError:
-            HTMLParser.__init__(self)
 
-        self.encoding = encoding
-        self.in_translate = False
-        self.inner_tags = []
-        self.data = ''
-        self.entries = []
-        self.line = 0
-        self.plural = False
-        self.plural_form = ''
-        self.comments = []
+def get_tag_lineno(fileobj, tag):
+    """
+    :param fileobj: html content
+    :type tag: bs4.Tag
+    """
+    # TODO: find tag on file line using parents and siblings
+    return 1
 
-    def handle_starttag(self, tag, attrs):
-        self.lineno = self.getpos()[0]
-        attrdict = dict(attrs)
 
-        # handle data-translate attribute for translating content
-        if 'translate' in attrdict:
-                self.in_translate = True
-                self.plural_form = ''
-                if 'data-translate-plural' in attrdict:
-                    self.plural = True
-                    value = attrdict['data-translate-plural']
-                    if PY2:
-                        value = value.decode(self.encoding)
-                    self.plural_form = value
-                if 'data-translate-comment' in attrdict:
-                    value = attrdict['data-translate-comment']
-                    if PY2:
-                        value = value.decode(self.encoding)
-                    self.comments.append(value)
-        elif self.in_translate:
-            self.data += '<%s>' % tag
-            self.inner_tags.append(tag)
-
-        # handle data-translate-attr attribute for translating attributes
-        if 'data-translate-attr' in attrdict:
-            for attr in attrdict['data-translate-attr'].split(','):
-                attr = attr.strip()
-                if attr not in attrdict:
-                    raise RuntimeError(
-                        "Cannot find attribute %r on <%s> at line %s" %
-                        (attr, tag, self.lineno))
-                value = attrdict[attr]
-                if PY2:
-                    value = value.decode(self.encoding)
-                self.entries.append(
-                    (self.lineno, u'gettext', value, [])
-                )
-
-    def handle_data(self, data):
-        if self.in_translate:
-            self.data += data
-
-    def handle_endtag(self, tag):
-        if self.in_translate:
-            if len(self.inner_tags) > 0:
-                tag = self.inner_tags.pop()
-                self.data += "</%s>" % tag
-                return
-            value = self.data.strip()
-            if PY2:
-                value = value.decode(self.encoding)
-            if self.plural_form:
-                messages = (
-                    value,
-                    self.plural_form
-                )
-                func_name = u'ngettext'
-            else:
-                messages = value
-                func_name = u'gettext'
-            self.entries.append(
-                (self.lineno, func_name, messages, self.comments)
-            )
-            self.in_translate = False
-            self.data = ''
-            self.comments = []
+def check_tags_in_content(tag):
+    """
+    :type tag: bs4.Tag
+    """
+    # TODO: allow only some tags inside content, e.g. <strong>, <br>, ...
+    pass
 
 
 def extract_angularjs(fileobj, keywords, comment_tags, options):
@@ -119,39 +53,20 @@ def extract_angularjs(fileobj, keywords, comment_tags, options):
              tuples
     :rtype: ``iterator``
     """
-    # atributy, ktere chceme prekladat, tzn extrahovat do .po
-    ATTRIBUTES = ["placeholder", "data-title", "alt", "data-tooltip", "title"]
+    attributes = options.get("include_attributes", [])
+    attributes = attributes and attributes.split(" ")
+    extract_attribute = options.get("extract_attribute") or "i18n"
 
-    encoding = options.get('encoding', 'utf-8')
     html = bs4.BeautifulSoup(fileobj, "html.parser")
-    # tags = html.find_all(lambda tag: tag.has_attr("i18n"))  # type: list[bs4.Tag]
-    # tags = html.find_all(lambda tag: any("i18n" in attr for attr in tag.attrs))  # type: list[bs4.Tag]
     tags = html.find_all()  # type: list[bs4.Tag]
 
     for tag in tags:
-        for attr in tag.attrs:
-            if attr in ATTRIBUTES:
-                yield (1, u"gettext", tag.attrs[attr], [attr])
-                continue
+        for attr in attributes:
+            if tag.attrs.get(attr):
+                yield (get_tag_lineno(fileobj, tag), "gettext", tag.attrs[attr], [attr])
 
-            if attr == "i18n":
-                content = tag.encode_contents()
-                content = content.replace("\n", " ").replace("\t", " ")
-                content = re.sub("\s+", " ", content).strip()
-                content = content.replace("/>", ">")
-                if content:
-                    # jinak to vraci warning pri prazdnem stringu
-                    yield (1, u"gettext", content.decode("utf-8"), [tag.attrs["i18n"]])
-
-
-            # if attr.startswith("i18n-"):
-            #     translateAttr = attr.split("i18n-")[1]
-            #     try:
-            #         translateAttrContent = tag.attrs[translateAttr]
-            #     except:
-            #         raise AttributeNotFoundExeption()
-            #     yield (1, u"gettext", translateAttrContent, [translateAttr])
-
-
-class AttributeNotFoundExeption(Exception):
-    pass
+        if extract_attribute in tag.attrs:
+            check_tags_in_content(tag)
+            content = normalize_content(tag)
+            comment = tag.attrs[extract_attribute]
+            yield (get_tag_lineno(fileobj, tag), "gettext", content.decode("utf-8"), [comment] if comment else [])

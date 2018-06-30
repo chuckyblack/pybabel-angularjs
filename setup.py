@@ -2,15 +2,15 @@ from setuptools import setup, find_packages
 
 setup(
     name="pybabel-angularjs",
-    version="0.2.0",
-    author="Sebastien Fievet",
-    author_email="sebastien@shore.li",
+    version="1.0.0",
+    author="Jaromír Pufler",
+    author_email="jaromir.pufler@gmail.com",
     url="https://bitbucket.org/shoreware/pybabel-angularjs",
     description="An AngularJS extractor for Babel",
-    long_description=open('README.rst').read(),
+    long_description=open('README.md').read(),
     package_dir={'': 'src'},
     packages=find_packages('src'),
-    install_requires=['babel'],
+    install_requires=['babel', 'beautifulsoup4'],
     setup_requires=['pytest-runner'],
     tests_require=['pytest'],
     entry_points={
@@ -19,7 +19,7 @@ setup(
         ],
     },
     license="Apache Software License",
-    keywords="angularjs gettext babel",
+    keywords="angularjs gettext babel i18n translate",
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",

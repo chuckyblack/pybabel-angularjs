@@ -1,43 +1,18 @@
-# -*- coding: utf-8 -*-
+# coding=utf-8
+
 from babel._compat import StringIO
-
 from pybabel_angularjs.extractor import extract_angularjs
-
-default_keys = []
 
 
 def test_extract_no_tags():
     buf = StringIO('<html></html>')
 
-    messages = list(extract_angularjs(buf, default_keys, [], {}))
-    assert messages == []
-
-
-def test_simple_string():
-    buf = StringIO('<html><div data-translate>hello world!</div></html>')
-
-    messages = list(extract_angularjs(buf, default_keys, [], {}))
-    assert messages == [
-        (1, u'gettext', 'hello world!', []),
-    ]
-
-
-def test_attr_value():
-    """We should not translate tags that have *data-translate* as the value of an
-    attribute.
-    """
-    buf = StringIO('<html><div id="data-translate">hello world!</div></html>')
-
     messages = list(extract_angularjs(buf, [], [], {}))
     assert messages == []
 
 
-def test_attr_value_plus_directive():
-    """Unless they also have a *data-translate* directive.
-    """
-    buf = StringIO(
-        '<html><div id="data-translate" data-translate>'
-        'hello world!</div></html>')
+def test_simple_string():
+    buf = StringIO('<html><div i18n>hello world!</div></html>')
 
     messages = list(extract_angularjs(buf, [], [], {}))
     assert messages == [
@@ -45,45 +20,44 @@ def test_attr_value_plus_directive():
     ]
 
 
-def test_plural_form():
-    buf = StringIO(
-        '<html><div data-translate data-translate-plural='
-        '"hello {$count$} worlds!">hello one world!</div></html>')
-
-    messages = list(extract_angularjs(buf, [], [], {}))
-    assert messages == [
-        (1, 'ngettext',
-         ('hello one world!',
-          'hello {$count$} worlds!'),
-         [])
-    ]
-
-
 def test_comments():
-    buf = StringIO(
-        '<html><div data-translate data-translate-comment='
-        '"What a beautiful world">hello world!</div></html>')
+    buf = StringIO('<html><div i18n="page title">hello world!</div></html>')
 
     messages = list(extract_angularjs(buf, [], [], {}))
     assert messages == [
-        (1, 'gettext', 'hello world!', ['What a beautiful world'])
+        (1, 'gettext', 'hello world!', ['page title'])
     ]
 
 
 def test_nested_tags():
-    buf = StringIO(
-        '<html><div data-translate>'
-        'hello <b>Beautiful</b> world!</div></html>')
+    buf = StringIO('<html><div i18n>hello <strong>Beautiful</strong> world!</div></html>')
 
     messages = list(extract_angularjs(buf, [], [], {}))
     assert messages == [
-        (1, 'gettext', 'hello <b>Beautiful</b> world!', [])
+        (1, 'gettext', 'hello <strong>Beautiful</strong> world!', [])
+    ]
+
+
+def test_collapse_whitespaces():
+    buf = StringIO('<html><div i18n>  \n\t\t  hello    <strong>Beautiful</strong> \n\t\t  world!\n\t\t  </div>  </html>')
+
+    messages = list(extract_angularjs(buf, [], [], {}))
+    assert messages == [
+        (1, 'gettext', 'hello <strong>Beautiful</strong> world!', [])
     ]
 
 
 def test_utf8_encoding():
-    buf = StringIO('<html><div data-translate>What’s up!</p></html>')
+    buf = StringIO('<html><div i18n>Příliš žluťoučký kůň úpěl ďábelské ódy.</div></html>')
     messages = list(extract_angularjs(buf, [], [], {}))
     assert messages == [
-        (1, 'gettext', u'What’s up!', [])
+        (1, 'gettext', u'Příliš žluťoučký kůň úpěl ďábelské ódy.', [])
+    ]
+
+
+def test_attribute():
+    buf = StringIO('<html><div title="some title">hello world!</div></html>')
+    messages = list(extract_angularjs(buf, [], [], {"include_attributes": "title"}))
+    assert messages == [
+        (1, 'gettext', 'some title', ["title"])
     ]
