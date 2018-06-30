@@ -5,7 +5,7 @@ setup(
     version="1.0.0",
     author="Jaromír Pufler",
     author_email="jaromir.pufler@gmail.com",
-    url="https://bitbucket.org/shoreware/pybabel-angularjs",
+    url="https://github.com/chuckyblack/pybabel-angularjs",
     description="An AngularJS extractor for Babel",
     long_description=open('README.md').read(),
     package_dir={'': 'src'},
