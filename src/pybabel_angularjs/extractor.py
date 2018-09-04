@@ -21,21 +21,77 @@ def normalize_content(tag):
     return re_collapse_whitespaces.sub(" ", content).strip()
 
 
-def get_tag_lineno(fileobj, tag):
+# TODO sloucit s normalize_content - ale ta neumi attributy
+def strip(string):
+    string = re.sub('\s+', '', string)
+    string = string.replace("<br/>", "<br>")
+    return string
+
+
+def get_string_lineno(fileobj, stringPositionsCache, strippedString):
+    cache = stringPositionsCache.get(strippedString)
+    if not cache:
+        stringPositionsCache[strippedString] = get_string_positions(fileobj, strippedString)
+    return stringPositionsCache[strippedString].pop(0)
+
+
+def get_string_positions(fileobj, strippedString):
     """
     :param fileobj: html content
-    :type tag: bs4.Tag
+    :type strippedString: str
     """
-    # TODO: find tag on file line using parents and siblings
-    return 1
+    fileobj.seek(0)
+    buf = unicode(fileobj.read(), "utf-8")
+    newlinesPositions = findAllStrings('\n', buf)
+    openingsPositions = findAllStrings('<[^/]', buf)
+
+    bufStripped = strip(buf)
+    openingsPositionsStripped = findAllStrings('<[^/]', bufStripped)
+    stringsPositionsStripped = findAllStrings(strippedString, bufStripped)
+
+    result = []
+    for stringPos in stringsPositionsStripped:
+        tagPositionIndex = getTagOriginalIndex(stringPos, openingsPositionsStripped)
+        tagPosition = openingsPositions[tagPositionIndex]
+        lineNumber = getTagOriginalLine(tagPosition, newlinesPositions)
+        if not lineNumber:
+            lineNumber = 1
+        result.append(lineNumber)
+    return result
+
+
+def getTagOriginalIndex(stringPos, openingsPositionsStripped):
+    i = 0
+    for i in range(0, len(openingsPositionsStripped)):
+        if openingsPositionsStripped[i] > stringPos:
+            return i - 1
+    return i
+
+
+def getTagOriginalLine(tagPosition, newlinesPositions):
+    lineNumber = 1
+    for newlinePos in newlinesPositions:
+        if newlinePos > tagPosition:
+            return lineNumber
+        else:
+            lineNumber += 1
+    return lineNumber
+
+
+def findAllStrings(pattern, string):
+    return [a.start() for a in list(re.finditer(pattern, string))]
 
 
 def check_tags_in_content(tag):
     """
     :type tag: bs4.Tag
     """
-    # TODO: allow only some tags inside content, e.g. <strong>, <br>, ...
-    pass
+    allowed_tags = ["strong", "br", "b",  "i", "span"]
+    for child in tag.descendants:
+        if isinstance(child, bs4.NavigableString):
+            continue
+        if child.name not in allowed_tags:
+            raise TagNotAllowedException
 
 
 def extract_angularjs(fileobj, keywords, comment_tags, options):
@@ -60,13 +116,23 @@ def extract_angularjs(fileobj, keywords, comment_tags, options):
     html = bs4.BeautifulSoup(fileobj, "html.parser")
     tags = html.find_all()  # type: list[bs4.Tag]
 
+    stringPositionsCache = {}
+
     for tag in tags:
         for attr in attributes:
             if tag.attrs.get(attr):
-                yield (get_tag_lineno(fileobj, tag), "gettext", tag.attrs[attr], [attr])
+                attrValue = tag.attrs[attr]
+                # TODO normalize_content pro atributy
+                lineno = get_string_lineno(fileobj, stringPositionsCache, strip(attrValue))
+                yield (lineno, "gettext", attrValue, [attr])
 
         if extract_attribute in tag.attrs:
             check_tags_in_content(tag)
             content = normalize_content(tag)
             comment = tag.attrs[extract_attribute]
-            yield (get_tag_lineno(fileobj, tag), "gettext", content.decode("utf-8"), [comment] if comment else [])
+            lineno = get_string_lineno(fileobj, stringPositionsCache, strip(tag.decode_contents()))
+            yield (lineno, "gettext", content.decode("utf-8"), [comment] if comment else [])
+
+
+class TagNotAllowedException(Exception):
+    pass
