@@ -32,7 +32,7 @@ def test_get_string_positions():
     assert messages == [
         (4, 'gettext', u'hello <br> world!', ['title']),
         (4, 'gettext', u'hello world!', []),
-        (7, 'gettext', u'   hello\n world  \t!', ['alt']),
+        (7, 'gettext', u'hello world !', ['alt']),
         (7, 'gettext', u'hello world!', [])
     ]
 
