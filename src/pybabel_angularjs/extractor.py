@@ -114,6 +114,8 @@ def check_tags_in_content(tag):
             continue
         if child.name not in allowed_tags:
             raise TagNotAllowedException
+        if child.attrs:
+            raise TagNotAllowedException
 
 
 def extract_angularjs(fileobj, keywords, comment_tags, options):

@@ -4,7 +4,16 @@ from babel._compat import StringIO
 from pybabel_angularjs.extractor import extract_angularjs, TagNotAllowedException
 
 
-def test_check_tags_in_content_error():
+def test_check_tags_in_content_attr_error():
+    buf = StringIO('<html><div title="hello world!" i18n> hello <br><strong class="anything">world</strong>!\n</div>\n<div alt="hello world!" i18n> hello world!</div></html>')
+
+    try:
+        messages = list(extract_angularjs(buf, [], [], {"include_attributes": "title alt"}))
+    except TagNotAllowedException:
+        assert True
+
+
+def test_check_tags_in_content_tag_error():
     buf = StringIO('<html><div title="hello world!" i18n> hello <br><strong><div>world</div></strong>!\n</div>\n<div alt="hello world!" i18n> hello world!</div></html>')
 
     try:
