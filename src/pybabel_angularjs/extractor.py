@@ -11,7 +11,7 @@ def normalize_content(tag, replace_whitespace=" "):
     :type tag: bs4.Tag
     :type replace_whitespace: str
     """
-    return normalize_string(tag.encode_contents(), replace_whitespace)
+    return normalize_string(tag.decode_contents(), replace_whitespace)
 
 
 def normalize_string(string, replace_whitespace=" "):
@@ -26,17 +26,19 @@ def normalize_string(string, replace_whitespace=" "):
         .replace("/>", ">")
         .replace("</br>", "")
     )
+    if not isinstance(string, unicode):
+        string = string.decode("utf-8")
     return re_collapse_whitespaces.sub(replace_whitespace, string).strip()
 
 
 def get_string_lineno(fileobj, string_positions_cache, stripped_string):
     """
     :param fileobj: html content
-    :param string_positions_cache: dict
-    :param stripped_string: str
+    :type string_positions_cache: dict
+    :type stripped_string: unicode
     """
     cache = string_positions_cache.get(stripped_string)
-    if not cache:
+    if cache is None:
         string_positions_cache[stripped_string] = get_string_positions(fileobj, stripped_string)
     return string_positions_cache[stripped_string].pop(0)
 
@@ -44,10 +46,12 @@ def get_string_lineno(fileobj, string_positions_cache, stripped_string):
 def get_string_positions(fileobj, stripped_string):
     """
     :type fileobj: html content
-    :type stripped_string: str
+    :type stripped_string: unicode
     """
     fileobj.seek(0)
     buf = fileobj.read()
+    buf = buf.decode("utf-8")
+
     newlines_positions = find_all_strings('\n', buf)
     openings_positions = find_all_strings('<[^/]', buf)
 
@@ -148,7 +152,7 @@ def extract_angularjs(fileobj, keywords, comment_tags, options):
             content = normalize_content(tag)
             comment = tag.attrs[extract_attribute]
             lineno = get_string_lineno(fileobj, stringPositionsCache, normalize_content(tag, ""))
-            yield (lineno, "gettext", content.decode("utf-8"), [comment] if comment else [])
+            yield (lineno, "gettext", content, [comment] if comment else [])
 
 
 class TagNotAllowedException(Exception):

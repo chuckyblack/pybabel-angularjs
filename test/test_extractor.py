@@ -26,14 +26,14 @@ def test_check_tags_in_content_ok():
 
 
 def test_get_string_positions():
-    buf = StringIO('<html>  \n\n\n<div title="hello <br> world!" i18n>\n   hello      world!\n</div>\n<div alt="   hello\n world  \t!" i18n> hello world!</div></html>')
+    buf = StringIO('<html>  \n\n\n<div title="hello <br> world!" i18n> \n   hello      world!\n</div>\n<div alt="   hello\n world  \t!" i18n> hello world! ěščřžýá</div></html>')
 
     messages = list(extract_angularjs(buf, [], [], {"include_attributes": "title alt"}))
     assert messages == [
         (4, 'gettext', u'hello <br> world!', ['title']),
         (4, 'gettext', u'hello world!', []),
         (7, 'gettext', u'hello world !', ['alt']),
-        (7, 'gettext', u'hello world!', [])
+        (7, 'gettext', u'hello world! ěščřžýá', [])
     ]
 
 
