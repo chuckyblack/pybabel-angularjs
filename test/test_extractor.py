@@ -1,7 +1,49 @@
 # coding=utf-8
 
 from babel._compat import StringIO
-from pybabel_angularjs.extractor import extract_angularjs
+from pybabel_angularjs.extractor import extract_angularjs, TagNotAllowedException
+
+
+def test_check_tags_in_content_attr_error():
+    buf = StringIO('<html><div title="hello world!" i18n> hello <br><strong class="anything">world</strong>!\n</div>\n<div alt="hello world!" i18n> hello world!</div></html>')
+
+    try:
+        messages = list(extract_angularjs(buf, [], [], {"include_attributes": "title alt"}))
+    except TagNotAllowedException:
+        assert True
+
+
+def test_check_tags_in_content_tag_error():
+    buf = StringIO('<html><div title="hello world!" i18n> hello <br><strong><div>world</div></strong>!\n</div>\n<div alt="hello world!" i18n> hello world!</div></html>')
+
+    try:
+        messages = list(extract_angularjs(buf, [], [], {"include_attributes": "title alt"}))
+    except TagNotAllowedException:
+        assert True
+
+
+def test_check_tags_in_content_ok():
+    buf = StringIO('<html><div title="hello world!" i18n> hello <br><strong>world</strong>!\n</div>\n<div alt="hello world!" i18n> hello world!</div></html>')
+
+    messages = list(extract_angularjs(buf, [], [], {"include_attributes": "title alt"}))
+    assert messages == [
+        (1, 'gettext', u'hello world!', ['title']),
+        (1, 'gettext', u'hello <br><strong>world</strong>!', []),
+        (3, 'gettext', u'hello world!', ['alt']),
+        (3, 'gettext', u'hello world!', [])
+    ]
+
+
+def test_get_string_positions():
+    buf = StringIO('<html>  \n\n\n<div title="hello <br> world!" i18n> \n   hello      world!\n</div>\n<div alt="   hello\n world  \t!" i18n> hello world! ěščřžýá</div></html>')
+
+    messages = list(extract_angularjs(buf, [], [], {"include_attributes": "title alt"}))
+    assert messages == [
+        (4, 'gettext', u'hello <br> world!', ['title']),
+        (4, 'gettext', u'hello world!', []),
+        (7, 'gettext', u'hello world !', ['alt']),
+        (7, 'gettext', u'hello world! ěščřžýá', [])
+    ]
 
 
 def test_extract_no_tags():

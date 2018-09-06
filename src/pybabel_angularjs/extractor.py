@@ -6,36 +6,116 @@ import re
 re_collapse_whitespaces = re.compile("\s+")
 
 
-def normalize_content(tag):
+def normalize_content(tag, replace_whitespace=" "):
     """
     :type tag: bs4.Tag
+    :type replace_whitespace: str
     """
-    content = (
-        tag
-        .encode_contents()
+    return normalize_string(tag.decode_contents(), replace_whitespace)
+
+
+def normalize_string(string, replace_whitespace=" "):
+    """
+    :type string: str
+    :type replace_whitespace: str
+    """
+    string = (
+        string
         .replace("\n", " ")
         .replace("\t", " ")
         .replace("/>", ">")
         .replace("</br>", "")
     )
-    return re_collapse_whitespaces.sub(" ", content).strip()
+    if not isinstance(string, unicode):
+        string = string.decode("utf-8")
+    return re_collapse_whitespaces.sub(replace_whitespace, string).strip()
 
 
-def get_tag_lineno(fileobj, tag):
+def get_string_lineno(fileobj, string_positions_cache, stripped_string):
     """
     :param fileobj: html content
-    :type tag: bs4.Tag
+    :type string_positions_cache: dict
+    :type stripped_string: unicode
     """
-    # TODO: find tag on file line using parents and siblings
-    return 1
+    cache = string_positions_cache.get(stripped_string)
+    if cache is None:
+        string_positions_cache[stripped_string] = get_string_positions(fileobj, stripped_string)
+    return string_positions_cache[stripped_string].pop(0)
+
+
+def get_string_positions(fileobj, stripped_string):
+    """
+    :type fileobj: html content
+    :type stripped_string: unicode
+    """
+    fileobj.seek(0)
+    buf = fileobj.read()
+    buf = buf.decode("utf-8")
+
+    newlines_positions = find_all_strings('\n', buf)
+    openings_positions = find_all_strings('<[^/]', buf)
+
+    buf_stripped = normalize_string(buf, "")
+    openings_positions_stripped = find_all_strings('<[^/]', buf_stripped)
+    strings_positions_stripped = find_all_strings(stripped_string, buf_stripped)
+
+    result = []
+    for string_pos in strings_positions_stripped:
+        tag_position_index = get_tag_original_index(string_pos, openings_positions_stripped)
+        tag_position = openings_positions[tag_position_index]
+        line_number = get_tag_original_line(tag_position, newlines_positions)
+        if not line_number:
+            line_number = 1
+        result.append(line_number)
+    return result
+
+
+def get_tag_original_index(string_pos, openings_positions_stripped):
+    """
+    :param string_pos: int
+    :param openings_positions_stripped: list(int)
+    """
+    i = 0
+    for i in range(0, len(openings_positions_stripped)):
+        if openings_positions_stripped[i] > string_pos:
+            return i - 1
+    return i
+
+
+def get_tag_original_line(tag_position, newlines_positions):
+    """
+    :param stringPos: int
+    :param openingsPositionsStripped: list(int)
+        """
+    line_number = 1
+    for newline_pos in newlines_positions:
+        if newline_pos > tag_position:
+            return line_number
+        else:
+            line_number += 1
+    return line_number
+
+
+def find_all_strings(pattern, string):
+    """
+    :param pattern: str
+    :param string: str
+    """
+    return [a.start() for a in list(re.finditer(pattern, string))]
 
 
 def check_tags_in_content(tag):
     """
     :type tag: bs4.Tag
     """
-    # TODO: allow only some tags inside content, e.g. <strong>, <br>, ...
-    pass
+    allowed_tags = ["strong", "br", "b",  "i", "span"]
+    for child in tag.descendants:
+        if isinstance(child, bs4.NavigableString):
+            continue
+        if child.name not in allowed_tags:
+            raise TagNotAllowedException()
+        if child.attrs:
+            raise TagNotAllowedException()
 
 
 def extract_angularjs(fileobj, keywords, comment_tags, options):
@@ -60,13 +140,22 @@ def extract_angularjs(fileobj, keywords, comment_tags, options):
     html = bs4.BeautifulSoup(fileobj, "html.parser")
     tags = html.find_all()  # type: list[bs4.Tag]
 
+    stringPositionsCache = {}
+
     for tag in tags:
         for attr in attributes:
             if tag.attrs.get(attr):
-                yield (get_tag_lineno(fileobj, tag), "gettext", tag.attrs[attr], [attr])
+                attrValue = normalize_string(tag.attrs[attr])
+                lineno = get_string_lineno(fileobj, stringPositionsCache, normalize_string(tag.attrs[attr], ""))
+                yield (lineno, "gettext", attrValue, [attr])
 
         if extract_attribute in tag.attrs:
             check_tags_in_content(tag)
             content = normalize_content(tag)
             comment = tag.attrs[extract_attribute]
-            yield (get_tag_lineno(fileobj, tag), "gettext", content.decode("utf-8"), [comment] if comment else [])
+            lineno = get_string_lineno(fileobj, stringPositionsCache, normalize_content(tag, ""))
+            yield (lineno, "gettext", content, [comment] if comment else [])
+
+
+class TagNotAllowedException(Exception):
+    pass
