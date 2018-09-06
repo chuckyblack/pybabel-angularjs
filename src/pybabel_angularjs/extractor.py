@@ -113,9 +113,9 @@ def check_tags_in_content(tag):
         if isinstance(child, bs4.NavigableString):
             continue
         if child.name not in allowed_tags:
-            raise TagNotAllowedException
+            raise TagNotAllowedException()
         if child.attrs:
-            raise TagNotAllowedException
+            raise TagNotAllowedException()
 
 
 def extract_angularjs(fileobj, keywords, comment_tags, options):
