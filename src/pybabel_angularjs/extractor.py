@@ -6,6 +6,14 @@ import re
 re_collapse_whitespaces = re.compile("\s+")
 
 
+class TagNotAllowedException(Exception):
+    pass
+
+
+class TagAttributeNotAllowedException(Exception):
+    pass
+
+
 def normalize_content(tag, replace_whitespace=" "):
     """
     :type tag: bs4.Tag
@@ -84,8 +92,8 @@ def get_tag_original_index(string_pos, openings_positions_stripped):
 
 def get_tag_original_line(tag_position, newlines_positions):
     """
-    :param stringPos: int
-    :param openingsPositionsStripped: list(int)
+    :param tag_position: int
+    :param newlines_positions: list(int)
         """
     line_number = 1
     for newline_pos in newlines_positions:
@@ -104,38 +112,43 @@ def find_all_strings(pattern, string):
     return [a.start() for a in list(re.finditer(pattern, string))]
 
 
-def check_tags_in_content(tag):
+def check_tags_in_content(tag, allowed_attributes_by_tag):
     """
     :type tag: bs4.Tag
+    :type allowed_attributes_by_tag: dict(str, list)
     """
-    allowed_tags = ["strong", "br", "b",  "i", "span"]
     for child in tag.descendants:
         if isinstance(child, bs4.NavigableString):
             continue
-        if child.name not in allowed_tags:
-            raise TagNotAllowedException()
-        if child.attrs:
-            raise TagNotAllowedException()
+
+        if child.name not in allowed_attributes_by_tag:
+            raise TagNotAllowedException(child.name)
+
+        allowed_attributes = allowed_attributes_by_tag[child.name]
+        if set(child.attrs.keys()) - set(allowed_attributes):
+            raise TagAttributeNotAllowedException(child.attrs)
+
+
+def get_option_list(options, name, default=[]):
+    value = options.get(name)
+    return value and value.split(" ") or default
 
 
 def extract_angularjs(fileobj, keywords, comment_tags, options):
     """Extract messages from AngularJS template (HTML) files that use the
     data-translate directive as per.
 
-    :param fileobj: the file-like object the messages should be extracted
-                    from
+    :param fileobj: the file-like object the messages should be extracted from
     :param keywords: This is a standard parameter so it isaccepted but ignored.
-
-    :param comment_tags: This is a standard parameter so it is accepted but
-                        ignored.
+    :param comment_tags: This is a standard parameter so it is accepted but ignored.
     :param options: Another standard parameter that is accepted but ignored.
-    :return: an iterator over ``(lineno, funcname, message, comments)``
-             tuples
+    :return: an iterator over ``(lineno, funcname, message, comments)`` tuples
     :rtype: ``iterator``
     """
-    attributes = options.get("include_attributes", [])
-    attributes = attributes and attributes.split(" ")
+    attributes = get_option_list(options, "include_attributes")
+    allowed_tags = get_option_list(options, "allowed_tags", ["strong", "br", "i"])
     extract_attribute = options.get("extract_attribute") or "i18n"
+    allowed_attributes_by_tag = {tag: get_option_list(options, "allowed_attributes_" + tag) for tag in allowed_tags}
 
     html = bs4.BeautifulSoup(fileobj, "html.parser")
     tags = html.find_all()  # type: list[bs4.Tag]
@@ -150,12 +163,8 @@ def extract_angularjs(fileobj, keywords, comment_tags, options):
                 yield (lineno, "gettext", attrValue, [attr])
 
         if extract_attribute in tag.attrs:
-            check_tags_in_content(tag)
+            check_tags_in_content(tag, allowed_attributes_by_tag)
             content = normalize_content(tag)
             comment = tag.attrs[extract_attribute]
             lineno = get_string_lineno(fileobj, stringPositionsCache, normalize_content(tag, ""))
             yield (lineno, "gettext", content, [comment] if comment else [])
-
-
-class TagNotAllowedException(Exception):
-    pass
