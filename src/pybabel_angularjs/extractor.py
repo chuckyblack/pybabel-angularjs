@@ -67,7 +67,7 @@ def get_string_positions(fileobj, stripped_string):
 
     buf_stripped = normalize_string(buf, "")
     openings_positions_stripped = find_all_strings('<[^/]', buf_stripped)
-    strings_positions_stripped = find_all_strings(stripped_string, buf_stripped)
+    strings_positions_stripped = find_all_strings(stripped_string, buf_stripped, escape=True)
 
     result = []
     for string_pos in strings_positions_stripped:
@@ -106,11 +106,14 @@ def get_tag_original_line(tag_position, newlines_positions):
     return line_number
 
 
-def find_all_strings(pattern, string):
+def find_all_strings(pattern, string, escape=False):
     """
     :param pattern: str
     :param string: str
+    :param escape: bool
     """
+    if escape:
+        pattern = re.escape(pattern)
     return [a.start() for a in list(re.finditer(pattern, string))]
 
 
