@@ -1,7 +1,7 @@
 # coding=utf-8
 
 from babel._compat import StringIO
-from pybabel_angularjs.extractor import extract_angularjs, TagNotAllowedException, TagAttributeNotAllowedException
+from pybabel_angularjs.extractor import extract_angularjs, TagNotAllowedException
 
 
 def test_check_tags_in_content_attr_error():
@@ -9,7 +9,7 @@ def test_check_tags_in_content_attr_error():
 
     try:
         messages = list(extract_angularjs(buf, [], [], {"include_attributes": "title alt"}))
-    except TagAttributeNotAllowedException:
+    except TagNotAllowedException:
         assert True
 
 
@@ -20,15 +20,6 @@ def test_check_tags_in_content_tag_error():
         messages = list(extract_angularjs(buf, [], [], {"include_attributes": "title alt"}))
     except TagNotAllowedException:
         assert True
-
-
-def test_check_tag_attributes_in_content_ok():
-    buf = StringIO('<html><div i18n>hello <br><strong><a href="www.helloworld.com" >world</a></strong>!</div></html>')
-
-    messages = list(extract_angularjs(buf, [], [], {"include_attributes": "title alt", "allowed_tags": "a br strong", "allowed_attributes_a": "href"}))
-    assert messages == [
-        (1, 'gettext', u'hello <br><strong><a href="www.helloworld.com">world</a></strong>!', [])
-    ]
 
 
 def test_check_tags_in_content_ok():

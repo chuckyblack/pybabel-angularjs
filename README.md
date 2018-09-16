@@ -38,30 +38,6 @@ Then use in template:
 
     <div title="some title">hello world!</div>
     <img src="..." alt="some image description">
-    
-    
-### allowed_tags
-
-Content of every translated tag is checked for tags it contains. You have to define sub-tags that can occur.
-Tags allowed by default are: strong, br, i
-
-    [angularjs: **/*.html]
-    encoding = utf-8
-    allowed_tags = a, strong, br
-    
-    
-### allowed_attributes_x
-
-Sub-tags (described in 'allowed_tags') may by default contain NO attributes at all.
-If you want to enable them to, you have to use this notation:
-
-    [angularjs: **/*.html]
-    encoding = utf-8
-    allowed_tags = a, i
-    allowed_attributes_a = href
-    allowed_attributes_i = class
-    
-The allowed_attribues_x setting needs to be accompanied by appropriate 'allowed_tags' setting. 
 
 
 Heavily inspired by 
