@@ -33,6 +33,7 @@ def normalize_string(string, replace_whitespace=" "):
         .replace("\t", " ")
         .replace("/>", ">")
         .replace("</br>", "")
+        .replace("&#xa;", "")   # because tag.attrs[attr] removes this char
     )
     if isinstance(string, bytes):
         string = string.decode("utf-8")
