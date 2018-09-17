@@ -33,7 +33,6 @@ def normalize_string(string, replace_whitespace=" "):
         .replace("\t", " ")
         .replace("/>", ">")
         .replace("</br>", "")
-        .replace("&#xa;", "")   # because tag.attrs[attr] removes this char
     )
     if isinstance(string, bytes):
         string = string.decode("utf-8")
@@ -155,6 +154,11 @@ def extract_angularjs(fileobj, keywords, comment_tags, options):
     allowed_tags = get_option_list(options, "allowed_tags", ["strong", "br", "i"])
     extract_attribute = options.get("extract_attribute") or "i18n"
     allowed_attributes_by_tag = {tag: get_option_list(options, "allowed_attributes_" + tag) for tag in allowed_tags}
+
+    value = fileobj.getvalue()
+    value = value.replace("&#xa;", "<br>")
+    fileobj.seek(0)
+    fileobj.write(value)
 
     html = bs4.BeautifulSoup(fileobj, "html.parser")
     tags = html.find_all()  # type: list[bs4.Tag]
