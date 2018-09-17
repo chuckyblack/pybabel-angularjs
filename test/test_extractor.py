@@ -4,6 +4,28 @@ from babel._compat import StringIO
 from pybabel_angularjs.extractor import extract_angularjs, TagNotAllowedException, TagAttributeNotAllowedException
 
 
+def test_do_not_extract_tag():
+    buf = StringIO('<html><h2 no-i18n>Heading 2</h2>\n<h3 no-i18n="fake comment">Heading 3</h3>\n<p>Hello world!</p><p i18n="useful comment for translator">Hello again.</p></html>')
+
+    messages = list(extract_angularjs(buf, [], [], {"include_tags": "p h2 h3"}))
+    assert messages == [
+        (3, 'gettext', u'Hello world!', []),
+        (3, 'gettext', u'Hello again.', ["useful comment for translator"])
+    ]
+
+
+def test_auto_extract():
+    buf = StringIO('<html><h2>Heading 2</h2>\n<h3>Heading 3</h3>\n<p>Hello world!</p><p i18n="useful comment for translator">Hello again.</p></html>')
+
+    messages = list(extract_angularjs(buf, [], [], {"include_tags": "p h2 h3"}))
+    assert messages == [
+        (1, 'gettext', u'Heading 2', []),
+        (2, 'gettext', u'Heading 3', []),
+        (3, 'gettext', u'Hello world!', []),
+        (3, 'gettext', u'Hello again.', ["useful comment for translator"])
+    ]
+
+
 def test_check_tags_in_content_attr_error():
     buf = StringIO('<html><div title="hello world!" i18n> hello <br><strong class="anything">world</strong>!\n</div>\n<div alt="hello world!" i18n> hello world!</div></html>')
 

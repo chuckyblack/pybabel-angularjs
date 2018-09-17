@@ -2,6 +2,7 @@
 
 import bs4
 import re
+from babel._compat import StringIO
 
 re_collapse_whitespaces = re.compile("\s+")
 
@@ -150,32 +151,33 @@ def extract_angularjs(fileobj, keywords, comment_tags, options):
     :return: an iterator over ``(lineno, funcname, message, comments)`` tuples
     :rtype: ``iterator``
     """
-    attributes = get_option_list(options, "include_attributes")
+    include_tags = get_option_list(options, "include_tags")
+    include_attributes = get_option_list(options, "include_attributes")
     allowed_tags = get_option_list(options, "allowed_tags", ["strong", "br", "i"])
     extract_attribute = options.get("extract_attribute") or "i18n"
+    do_not_extract_attribute = options.get("do_not_extract_attribute") or "no-i18n"
     allowed_attributes_by_tag = {tag: get_option_list(options, "allowed_attributes_" + tag) for tag in allowed_tags}
 
-    value = fileobj.getvalue()
+    value = fileobj.read()
     value = value.replace("&#xa;", "<br>")
     fileobj.seek(0)
-    fileobj.write(value)
-    fileobj.seek(0)
+    newfileobj = StringIO(value)
 
-    html = bs4.BeautifulSoup(fileobj, "html.parser")
+    html = bs4.BeautifulSoup(newfileobj, "html.parser")
     tags = html.find_all()  # type: list[bs4.Tag]
 
     stringPositionsCache = {}
 
     for tag in tags:
-        for attr in attributes:
+        for attr in include_attributes:
             if tag.attrs.get(attr):
                 attrValue = normalize_string(tag.attrs[attr])
-                lineno = get_string_lineno(fileobj, stringPositionsCache, normalize_string(tag.attrs[attr], ""))
+                lineno = get_string_lineno(newfileobj, stringPositionsCache, normalize_string(tag.attrs[attr], ""))
                 yield (lineno, "gettext", attrValue, [attr])
 
-        if extract_attribute in tag.attrs:
+        if (tag.name in include_tags or extract_attribute in tag.attrs) and do_not_extract_attribute not in tag.attrs:
             check_tags_in_content(tag, allowed_attributes_by_tag)
             content = normalize_content(tag)
-            comment = tag.attrs[extract_attribute]
-            lineno = get_string_lineno(fileobj, stringPositionsCache, normalize_content(tag, ""))
+            comment = tag.attrs.get(extract_attribute, "")
+            lineno = get_string_lineno(newfileobj, stringPositionsCache, normalize_content(tag, ""))
             yield (lineno, "gettext", content, [comment] if comment else [])
