@@ -159,6 +159,7 @@ def extract_angularjs(fileobj, keywords, comment_tags, options):
     value = value.replace("&#xa;", "<br>")
     fileobj.seek(0)
     fileobj.write(value)
+    fileobj.seek(0)
 
     html = bs4.BeautifulSoup(fileobj, "html.parser")
     tags = html.find_all()  # type: list[bs4.Tag]
