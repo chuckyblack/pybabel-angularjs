@@ -1,9 +1,9 @@
-# coding=utf-8
+try:
+    from html.parser import HTMLParser
+except ImportError:
+    from HTMLParser import HTMLParser
 
-import bs4
 import re
-
-re_collapse_whitespaces = re.compile("\s+")
 
 
 class TagNotAllowedException(Exception):
@@ -14,124 +14,123 @@ class TagAttributeNotAllowedException(Exception):
     pass
 
 
-def normalize_content(tag, replace_whitespace=" "):
+class MissingAttributeException(Exception):
+    pass
+
+
+class AngularJSGettextHTMLParser(HTMLParser):
+    """Parse HTML to find translate directives.
+
+    Currently this parses for these forms of translation:
+
+    <p data-translate>content</p>
+        The content will be translated. Angular value templating will be
+        recognised and transformed into gettext-familiar translation
+        entries (i.e. "{$ expression $}" becomes "%(expression)")
     """
-    :type tag: bs4.Tag
-    :type replace_whitespace: str
-    """
-    return normalize_string(tag.decode_contents(), replace_whitespace)
 
+    def __init__(self, encoding, include_tags, include_attributes, extract_attribute, allowed_attributes_by_tag):
+        try:
+            super(AngularJSGettextHTMLParser, self).__init__()
+        except TypeError:
+            HTMLParser.__init__(self)
 
-def normalize_string(string, replace_whitespace=" "):
-    """
-    :type string: str
-    :type replace_whitespace: str
-    """
-    string = (
-        string
-        .replace("\n", " ")
-        .replace("\t", " ")
-        .replace("/>", ">")
-        .replace("</br>", "")
-    )
-    if isinstance(string, bytes):
-        string = string.decode("utf-8")
-    return re_collapse_whitespaces.sub(replace_whitespace, string).strip()
+        self.encoding = encoding
+        self.include_tags = include_tags
+        self.include_attributes = include_attributes
+        self.extract_attribute = extract_attribute
+        self.allowed_attributes_by_tag = allowed_attributes_by_tag
 
+        self.in_translate = False
+        self.inner_tags = []
+        self.data = ''
+        self.entries = []
+        self.start_lineno = 0
+        self.plural = False
+        self.plural_form = ''
+        self.comments = []
+        self.re_collapse_whitespaces = re.compile("\s+")
 
-def get_string_lineno(fileobj, string_positions_cache, stripped_string):
-    """
-    :param fileobj: html content
-    :type string_positions_cache: dict
-    :type stripped_string: str
-    """
-    cache = string_positions_cache.get(stripped_string)
-    if cache is None:
-        string_positions_cache[stripped_string] = get_string_positions(fileobj, stripped_string)
-    return string_positions_cache[stripped_string].pop(0)
+    @property
+    def do_not_extract_attribute(self):
+        return "no-" + self.extract_attribute
 
-
-def get_string_positions(fileobj, stripped_string):
-    """
-    :type fileobj: html content
-    :type stripped_string: str
-    """
-    fileobj.seek(0)
-    buf = fileobj.read()
-
-    if isinstance(buf, bytes):
-        buf = buf.decode("utf-8")
-
-    newlines_positions = find_all_strings('\n', buf)
-    openings_positions = find_all_strings('<[^/]', buf)
-
-    buf_stripped = normalize_string(buf, "")
-    openings_positions_stripped = find_all_strings('<[^/]', buf_stripped)
-    strings_positions_stripped = find_all_strings(stripped_string, buf_stripped, escape=True)
-
-    result = []
-    for string_pos in strings_positions_stripped:
-        tag_position_index = get_tag_original_index(string_pos, openings_positions_stripped)
-        tag_position = openings_positions[tag_position_index]
-        line_number = get_tag_original_line(tag_position, newlines_positions)
-        if not line_number:
-            line_number = 1
-        result.append(line_number)
-    return result
-
-
-def get_tag_original_index(string_pos, openings_positions_stripped):
-    """
-    :param string_pos: int
-    :param openings_positions_stripped: list(int)
-    """
-    i = 0
-    for i in range(0, len(openings_positions_stripped)):
-        if openings_positions_stripped[i] > string_pos:
-            return i - 1
-    return i
-
-
-def get_tag_original_line(tag_position, newlines_positions):
-    """
-    :param tag_position: int
-    :param newlines_positions: list(int)
+    def normalize_string(self, string, replace_whitespace=" "):
         """
-    line_number = 1
-    for newline_pos in newlines_positions:
-        if newline_pos > tag_position:
-            return line_number
-        else:
-            line_number += 1
-    return line_number
+        :type string: str
+        :type replace_whitespace: str
+        """
+        string = (
+            string
+                .replace("\n", " ")
+                .replace("\t", " ")
+                .replace("/>", ">")
+                .replace("</br>", "")
+        )
+        if isinstance(string, bytes):
+            string = string.decode("utf-8")
+        return self.re_collapse_whitespaces.sub(replace_whitespace, string).strip()
 
+    def add_entry(self, message, comments=[], lineno=None):
+        self.entries.append(
+            (lineno or self.start_lineno, u'gettext', self.normalize_string(message), [self.normalize_string(comment) for comment in comments])
+        )
 
-def find_all_strings(pattern, string, escape=False):
-    """
-    :param pattern: str
-    :param string: str
-    :param escape: bool
-    """
-    if escape:
-        pattern = re.escape(pattern)
-    return [a.start() for a in list(re.finditer(pattern, string))]
+    def handle_starttag(self, tag, attrs):
+        attrdict = dict(attrs)
+        lineno = self.getpos()[0]
 
+        # handle data-translate attribute for translating content
+        if self.extract_attribute in attrdict or (tag in self.include_tags and self.do_not_extract_attribute not in attrdict):
+            self.start_lineno = lineno
+            self.in_translate = True
+            comment = attrdict.get(self.extract_attribute)
+            if comment:
+                self.comments.append(comment)
+        elif self.in_translate:
+            if tag not in self.allowed_attributes_by_tag:
+                raise TagNotAllowedException((lineno, tag))
 
-def check_tags_in_content(tag, allowed_attributes_by_tag):
-    """
-    :type tag: bs4.Tag
-    :type allowed_attributes_by_tag: dict(str, list)
-    """
-    for child in tag.descendants:
-        if isinstance(child, bs4.NavigableString):
-            continue
+            allowed_attributes = self.allowed_attributes_by_tag[tag]
+            if set(attrdict.keys()) - set(allowed_attributes):
+                raise TagAttributeNotAllowedException((lineno, tag, attrdict))
 
-        if child.name not in allowed_attributes_by_tag:
-            raise TagNotAllowedException(child.name)
+            if attrs:
+                self.data += '<%s %s>' % (tag, " ".join(['%s="%s"' % attr for attr in attrs]))
+            else:
+                self.data += '<%s>' % tag
 
-        allowed_attributes = allowed_attributes_by_tag[child.name]
-        if set(child.attrs.keys()) - set(allowed_attributes):
-            raise TagAttributeNotAllowedException(child.attrs)
+            if tag not in ("br", "input", "img"):
+                self.inner_tags.append(tag)
+
+        for attr in self.include_attributes:
+            exclude_attribute = "%s-%s" % (self.do_not_extract_attribute, attr)
+            if attr in attrdict and exclude_attribute not in attrdict:
+                self.add_entry(attrdict[attr], [attr], lineno)
+
+        for attr in attrdict:  # type: str
+            if attr.startswith(self.extract_attribute + "-"):
+                name = attr.split("-", 1)[1]
+                if name not in attrdict:
+                    raise MissingAttributeException((lineno, tag, name))
+
+                self.add_entry(attrdict[name], [name], lineno)
+
+    def handle_data(self, data):
+        if self.in_translate:
+            self.data += data
+
+    def handle_endtag(self, tag):
+        if self.in_translate:
+            if len(self.inner_tags) > 0:
+                tag = self.inner_tags.pop()
+                self.data += "</%s>" % tag
+                return
+
+            self.add_entry(self.data, self.comments)
+            self.in_translate = False
+            self.data = ''
+            self.comments = []
 
 
 def get_option_list(options, name, default=[]):
@@ -150,26 +149,26 @@ def extract_angularjs(fileobj, keywords, comment_tags, options):
     :return: an iterator over ``(lineno, funcname, message, comments)`` tuples
     :rtype: ``iterator``
     """
-    attributes = get_option_list(options, "include_attributes")
+    include_tags = get_option_list(options, "include_tags")
+    include_attributes = get_option_list(options, "include_attributes")
     allowed_tags = get_option_list(options, "allowed_tags", ["strong", "br", "i"])
     extract_attribute = options.get("extract_attribute") or "i18n"
     allowed_attributes_by_tag = {tag: get_option_list(options, "allowed_attributes_" + tag) for tag in allowed_tags}
+    encoding = options.get('encoding', 'utf-8')
 
-    html = bs4.BeautifulSoup(fileobj, "html.parser")
-    tags = html.find_all()  # type: list[bs4.Tag]
+    parser = AngularJSGettextHTMLParser(
+        encoding,
+        include_tags,
+        include_attributes,
+        extract_attribute,
+        allowed_attributes_by_tag
+    )
 
-    stringPositionsCache = {}
+    for line in fileobj:
+        if isinstance(line, bytes):
+            line = line.decode("utf-8")
+        line = line.replace("&#xa;", "<br>")
+        parser.feed(line)
 
-    for tag in tags:
-        for attr in attributes:
-            if tag.attrs.get(attr):
-                attrValue = normalize_string(tag.attrs[attr])
-                lineno = get_string_lineno(fileobj, stringPositionsCache, normalize_string(tag.attrs[attr], ""))
-                yield (lineno, "gettext", attrValue, [attr])
-
-        if extract_attribute in tag.attrs:
-            check_tags_in_content(tag, allowed_attributes_by_tag)
-            content = normalize_content(tag)
-            comment = tag.attrs[extract_attribute]
-            lineno = get_string_lineno(fileobj, stringPositionsCache, normalize_content(tag, ""))
-            yield (lineno, "gettext", content, [comment] if comment else [])
+    for entry in parser.entries:
+        yield entry
