@@ -50,6 +50,7 @@ class AngularJSGettextHTMLParser(HTMLParser):
         self.plural_form = ''
         self.comments = []
         self.re_collapse_whitespaces = re.compile("\s+")
+        self.in_do_not_translate = False
 
     @property
     def do_not_extract_attribute(self):
@@ -76,9 +77,21 @@ class AngularJSGettextHTMLParser(HTMLParser):
             (lineno or self.start_lineno, u'gettext', self.normalize_string(message), [self.normalize_string(comment) for comment in comments])
         )
 
+    def append_inner_tag(self, tag):
+        if tag not in ("br", "input", "img"):
+            self.inner_tags.append(tag)
+
     def handle_starttag(self, tag, attrs):
+        if self.in_do_not_translate:
+            self.append_inner_tag(tag)
+            return
+
         attrdict = dict(attrs)
         lineno = self.getpos()[0]
+
+        if tag == "div" and self.do_not_extract_attribute in attrdict:
+            self.in_do_not_translate = True
+            return
 
         # handle data-translate attribute for translating content
         if self.extract_attribute in attrdict or (tag in self.include_tags and self.do_not_extract_attribute not in attrdict):
@@ -92,16 +105,27 @@ class AngularJSGettextHTMLParser(HTMLParser):
                 raise TagNotAllowedException((lineno, tag))
 
             allowed_attributes = self.allowed_attributes_by_tag[tag]
-            if set(attrdict.keys()) - set(allowed_attributes):
-                raise TagAttributeNotAllowedException((lineno, tag, attrdict))
+            diff_attributes = set(attrdict.keys()) - set(allowed_attributes)
+            for attr in diff_attributes:
+                if attr.startswith(self.extract_attribute + "-"):
+                    name = attr.split("-", 1)[1]
+                    if name not in attrdict:
+                        raise TagAttributeNotAllowedException((lineno, tag, attrdict))
 
             if attrs:
-                self.data += '<%s %s>' % (tag, " ".join(['%s="%s"' % attr for attr in attrs]))
+                insert_value = ""
+                for attr in attrs:
+                    name = attr[0]
+                    value = attr[1]
+                    if value:
+                        insert_value += " " + '%s="%s"' % (name, value)
+                    else:
+                        insert_value += " " + '%s' % name
+                self.data += '<%s %s>' % (tag, insert_value)
             else:
                 self.data += '<%s>' % tag
 
-            if tag not in ("br", "input", "img"):
-                self.inner_tags.append(tag)
+            self.append_inner_tag(tag)
 
         for attr in self.include_attributes:
             exclude_attribute = "%s-%s" % (self.do_not_extract_attribute, attr)
@@ -121,6 +145,13 @@ class AngularJSGettextHTMLParser(HTMLParser):
             self.data += data
 
     def handle_endtag(self, tag):
+        if self.in_do_not_translate:
+            if len(self.inner_tags) > 0:
+                self.inner_tags.pop()
+                return
+
+            self.in_do_not_translate = False
+
         if self.in_translate:
             if len(self.inner_tags) > 0:
                 tag = self.inner_tags.pop()
