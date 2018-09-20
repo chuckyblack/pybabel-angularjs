@@ -1,7 +1,7 @@
 # coding=utf-8
 
 from babel._compat import StringIO
-from pybabel_angularjs.extractor import extract_angularjs, TagNotAllowedException, TagAttributeNotAllowedException
+from pybabel_angularjs.extractor import extract_angularjs, TagNotAllowedException, TagAttributeNotAllowedException, ExtractAttributeNotAllowedException
 
 
 def test_extract_no_tags():
@@ -81,7 +81,7 @@ def test_extract_attribute2():
 
 def test_extract_attribute3():
     buf = StringIO('<html><div i18n><strong something="some title" i18n-something>hello world!</strong></div></html>')
-    messages = list(extract_angularjs(buf, [], [], {}))
+    messages = list(extract_angularjs(buf, [], [], {"include_attributes": "something"}))
     assert messages == [
         (1, 'gettext', 'some title', ["something"]),
         (1, 'gettext', '<strong something="some title" i18n-something>hello world!</strong>', [])
@@ -118,19 +118,23 @@ def test_do_not_extract_tag():
 def test_check_tags_in_content_attr_error():
     buf = StringIO('<html><div title="hello world!" i18n> hello <br><strong class="anything">world</strong>!\n</div>\n<div alt="hello world!" i18n> hello world!</div></html>')
 
+    passed = False
     try:
         messages = list(extract_angularjs(buf, [], [], {"include_attributes": "title alt", }))
     except TagAttributeNotAllowedException:
-        assert True
+        passed = True
+    assert passed
 
 
 def test_check_tags_in_content_tag_error():
     buf = StringIO('<html><div title="hello world!" i18n> hello <br><strong><div>world</div></strong>!\n</div>\n<div alt="hello world!" i18n> hello world!</div></html>')
 
+    passed = False
     try:
         messages = list(extract_angularjs(buf, [], [], {"include_attributes": "title alt"}))
     except TagNotAllowedException:
-        assert True
+        passed = True
+    assert passed
 
 
 def test_check_tag_attributes_in_content_ok():
@@ -174,3 +178,15 @@ def test_do_not_extract_entire_div_block():
         (4, 'gettext', u'extracted title', ['title']),
         (4, 'gettext', u'Heading 3', []),
     ]
+
+
+def test_do_not_extract_entire_div_block_inner_attributes_error():
+    for attr in ["i18n", "no-i18n", "i18n-title", "no-i18n-title"]:
+        buf = StringIO('<html><div no-i18n>hello world!\n<h2 title="some title" %s>Heading 2</h2>\n<div>another div <p>text1</p></div><p>text2</p>\n<h3 title="extracted title">Heading 3</h3></div></html>' % attr)
+
+        passed = False
+        try:
+            messages = list(extract_angularjs(buf, [], [], {"include_attributes": "title alt", "include_tags": "p h2 h3"}))
+        except ExtractAttributeNotAllowedException:
+            passed = True
+        assert passed
