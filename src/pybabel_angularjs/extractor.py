@@ -14,6 +14,10 @@ class TagAttributeNotAllowedException(Exception):
     pass
 
 
+class ExtractAttributeNotAllowedException(Exception):
+    pass
+
+
 class MissingAttributeException(Exception):
     pass
 
@@ -81,16 +85,28 @@ class AngularJSGettextHTMLParser(HTMLParser):
         if tag not in ("br", "input", "img"):
             self.inner_tags.append(tag)
 
-    def handle_starttag(self, tag, attrs):
-        if self.in_do_not_translate:
-            self.append_inner_tag(tag)
-            return
+    def attrdict_contains(self, attrdict, search=None):
+        search = search or [self.extract_attribute, self.do_not_extract_attribute]
+        for attr in attrdict:   # type: str
+            for string in search:
+                if attr.startswith(string):
+                    return True
+        return False
 
+    def handle_starttag(self, tag, attrs):
         attrdict = dict(attrs)
         lineno = self.getpos()[0]
 
+        if self.in_do_not_translate:
+            if self.attrdict_contains(attrdict):
+                raise ExtractAttributeNotAllowedException((lineno, tag, attrdict))
+            self.append_inner_tag(tag)
+            return
+
         if tag == "div" and self.do_not_extract_attribute in attrdict:
             self.in_do_not_translate = True
+            if self.attrdict_contains(attrdict, [self.extract_attribute]):
+                raise ExtractAttributeNotAllowedException((lineno, tag, attrdict))
             return
 
         # handle data-translate attribute for translating content
@@ -107,10 +123,12 @@ class AngularJSGettextHTMLParser(HTMLParser):
             allowed_attributes = self.allowed_attributes_by_tag[tag]
             diff_attributes = set(attrdict.keys()) - set(allowed_attributes)
             for attr in diff_attributes:
-                if attr.startswith(self.extract_attribute + "-"):
-                    name = attr.split("-", 1)[1]
-                    if name not in attrdict:
-                        raise TagAttributeNotAllowedException((lineno, tag, attrdict))
+                if attr.startswith(self.extract_attribute + "-"):   # i18n-
+                    pairAttr = attr.split("-", 1)[1]
+                else:
+                    pairAttr = "%s-%s" % (self.extract_attribute, attr)
+                if pairAttr not in attrdict:
+                    raise TagAttributeNotAllowedException((lineno, tag, attrdict))
 
             if attrs:
                 insert_value = ""
@@ -127,18 +145,23 @@ class AngularJSGettextHTMLParser(HTMLParser):
 
             self.append_inner_tag(tag)
 
+        already_added_attrs = []
+        # auto-add attributes
         for attr in self.include_attributes:
             exclude_attribute = "%s-%s" % (self.do_not_extract_attribute, attr)
             if attr in attrdict and exclude_attribute not in attrdict:
                 self.add_entry(attrdict[attr], [attr], lineno)
+                already_added_attrs.append(attr)
 
+        # i18n-marked attributes
         for attr in attrdict:  # type: str
             if attr.startswith(self.extract_attribute + "-"):
                 name = attr.split("-", 1)[1]
                 if name not in attrdict:
                     raise MissingAttributeException((lineno, tag, name))
 
-                self.add_entry(attrdict[name], [name], lineno)
+                if name not in already_added_attrs:
+                    self.add_entry(attrdict[name], [name], lineno)
 
     def handle_data(self, data):
         if self.in_translate:
