@@ -1,6 +1,8 @@
 pybabel-angularjs
 =================
 
+[![Build Status](https://travis-ci.org/chuckyblack/pybabel-angularjs.svg?branch=master)](https://travis-ci.org/chuckyblack/pybabel-angularjs.svg?branch=master)
+
 A Babel extractor for AngularJS templates.
 
 To translate the content of an HTML element use the `i18n`
