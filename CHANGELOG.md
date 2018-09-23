@@ -1,6 +1,10 @@
 pybabel-angularjs changelog
 =================
 
+##v1.3.1
+
+- \&nbsp; extracting fixed
+
 ##v1.3.0
 
 - don't translate whole block marked with no-i18n

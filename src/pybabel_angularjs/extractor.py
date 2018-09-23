@@ -1,3 +1,5 @@
+# coding=utf-8
+
 try:
     from html.parser import HTMLParser
 except ImportError:
@@ -71,6 +73,7 @@ class AngularJSGettextHTMLParser(HTMLParser):
                 .replace("\t", " ")
                 .replace("/>", ">")
                 .replace("</br>", "")
+                .replace(u" ", "&nbsp;")
         )
         if isinstance(string, bytes):
             string = string.decode("utf-8")
@@ -222,6 +225,7 @@ def extract_angularjs(fileobj, keywords, comment_tags, options):
         if isinstance(line, bytes):
             line = line.decode("utf-8")
         line = line.replace("&#xa;", "<br>")
+        line = line.replace("&nbsp;", u" ")
         parser.feed(line)
 
     for entry in parser.entries:
