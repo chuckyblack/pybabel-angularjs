@@ -138,10 +138,7 @@ class AngularJSGettextHTMLParser(HTMLParser):
                 for attr in attrs:
                     name = attr[0]
                     value = attr[1]
-                    if value:
-                        insert_value += " " + '%s="%s"' % (name, value)
-                    else:
-                        insert_value += " " + '%s' % name
+                    insert_value += " " + '%s="%s"' % (name, value or "")
                 self.data += '<%s %s>' % (tag, insert_value)
             else:
                 self.data += '<%s>' % tag
