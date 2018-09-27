@@ -81,7 +81,13 @@ class AngularJSGettextHTMLParser(HTMLParser):
 
     def add_entry(self, message, comments=[], lineno=None):
         self.entries.append(
-            (lineno or self.start_lineno, u'gettext', self.normalize_string(message), [self.normalize_string(comment) for comment in comments])
+            (
+                lineno or self.start_lineno,
+                u'gettext',
+                self.normalize_string(message),
+                [self.normalize_string(comment) for comment in comments],
+                ("angularjs-format", )
+            )
         )
 
     def append_inner_tag(self, tag):
@@ -200,7 +206,7 @@ def extract_angularjs(fileobj, keywords, comment_tags, options):
     :param keywords: This is a standard parameter so it isaccepted but ignored.
     :param comment_tags: This is a standard parameter so it is accepted but ignored.
     :param options: Another standard parameter that is accepted but ignored.
-    :return: an iterator over ``(lineno, funcname, message, comments)`` tuples
+    :return: an iterator over ``(lineno, funcname, message, comments, flags)`` tuples
     :rtype: ``iterator``
     """
     include_tags = get_option_list(options, "include_tags")

@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="pybabel-angularjs",
-    version="1.3.1",
+    version="1.3.2",
     author="Jaromír Pufler",
     author_email="jaromir.pufler@gmail.com",
     url="https://github.com/chuckyblack/pybabel-angularjs",
