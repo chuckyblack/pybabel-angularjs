@@ -62,7 +62,7 @@ class AngularJSGettextHTMLParser(HTMLParser):
     def do_not_extract_attribute(self):
         return "no-" + self.extract_attribute
 
-    def normalize_string(self, string, replace_whitespace=" "):
+    def normalize_string(self, string, replace_whitespace=u" "):
         """
         :type string: str
         :type replace_whitespace: str
@@ -86,7 +86,7 @@ class AngularJSGettextHTMLParser(HTMLParser):
                 u'gettext',
                 self.normalize_string(message),
                 [self.normalize_string(comment) for comment in comments],
-                ("angularjs-format", )
+                ("angularjs-format", ) if "{{" in message else tuple()
             )
         )
 
